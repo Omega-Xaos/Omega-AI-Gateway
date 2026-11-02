@@ -4,7 +4,7 @@
 
 **Goal:** Build a standalone .NET 10 library that gives Omega Lab applications a provider-neutral AI contract, an OpenAI-compatible adapter, and an optional official ChatGPT OAuth adapter for eligible local testing.
 
-**Architecture:** One packable library owns the neutral DTOs, Gateway orchestration, DI registration, and provider adapters. Applications supply profile and protected credential storage and host the OAuth loopback callback; adding another provider means implementing and registering `IAiProvider`, without adding consumer-domain types to the Gateway.
+**Architecture:** One packable library owns the neutral DTOs, Gateway orchestration, DI registration, and provider adapters. Applications supply profile and protected credential storage. The OAuth adapter owns the short-lived loopback callback and opens the user's system browser through an injectable abstraction; adding another provider means implementing and registering `IAiProvider`, without adding consumer-domain types to the Gateway.
 
 **Tech Stack:** C# / .NET 10, `HttpClient`, `System.Text.Json`, dependency injection, xUnit, and a maintained JWT/OpenID Connect validation package for OAuth ID tokens.
 
@@ -18,6 +18,7 @@
 - Do not use browser automation, cookies, ChatGPT private endpoints, or OAuth billing-path fallback.
 - For Sign in with ChatGPT plan usage, call only the public Responses API with `store=false`, `stream=true`; do not report success before `response.completed`.
 - ChatGPT plan OAuth is optional local-development/testing functionality subject to current OpenAI eligibility and shared usage limits; ordinary/production use should use supported provider APIs and their documented billing/authentication.
+- The user explicitly declined creating an OpenAI API key. Do not provision, configure, inspect, or use one; protocol tests remain offline and live ChatGPT plan testing waits for the user to complete OAuth consent.
 - No network credentials or external provider are required for build or tests.
 
 ## Review Focus
@@ -113,6 +114,9 @@
 - Create: `src/Omega.AI.Gateway/Providers/ChatGptOAuth/ChatGptOAuthCredential.cs`
 - Create: `src/Omega.AI.Gateway/Providers/ChatGptOAuth/IChatGptOAuthCredentialStore.cs`
 - Create: `src/Omega.AI.Gateway/Providers/ChatGptOAuth/ChatGptOAuthAuthorizationService.cs`
+- Create: `src/Omega.AI.Gateway/Providers/ChatGptOAuth/LoopbackOAuthCallbackListener.cs`
+- Create: `src/Omega.AI.Gateway/Providers/ChatGptOAuth/IAuthorizationBrowser.cs`
+- Create: `src/Omega.AI.Gateway/Providers/ChatGptOAuth/SystemAuthorizationBrowser.cs`
 - Create: `src/Omega.AI.Gateway/Providers/ChatGptOAuth/ChatGptOAuthTokenClient.cs`
 - Create: `src/Omega.AI.Gateway/Providers/ChatGptOAuth/ChatGptIdTokenValidator.cs`
 - Create: `tests/Omega.AI.Gateway.Tests/Providers/ChatGptOAuthAuthorizationTests.cs`
@@ -120,11 +124,12 @@
 
 **Interfaces:**
 - `IChatGptOAuthCredentialStore` provides `GetAsync(profileId)`, `SaveAsync(profileId, credential)`, and `DeleteAsync(profileId)`; production implementations belong to the host and must protect token material.
-- `BeginAuthorizationAsync(profileId, hostId, redirectUri, ct)` returns the official authorization URI and opaque attempt ID. The host opens a system browser and binds the exact loopback URI on `127.0.0.1`.
-- `CompleteAuthorizationAsync(attemptId, callbackUri, ct)` validates callback state/client ID, exchanges authorization code with PKCE, verifies ID-token signature/issuer/audience/expiry/nonce and required granted scope, and stores the credential.
-- OAuth attempt state, verifier, and nonce are one-time and short-lived. The library does not launch a browser or expose a callback listener.
+- `BeginSignInAsync(profileId, hostId, ct)` creates a short-lived loopback callback listener, builds the official authorization URI, and opens the system browser through an injectable `IAuthorizationBrowser`; a headless host may select a browser adapter that exposes the URI instead.
+- `WaitForSignInAsync(profileId, ct)` observes callback completion; the listener accepts only `127.0.0.1` and the fixed `/auth/callback` path.
+- Callback processing validates state/client ID, exchanges authorization code with PKCE, verifies ID-token signature/issuer/audience/expiry/nonce and required granted scope, then stores the credential.
+- OAuth attempt state, verifier, and nonce are one-time and short-lived. The default adapter launches the system browser and accepts only the fixed loopback callback; headless hosts can inject a browser adapter.
 
-- [ ] **Step 1: Write deterministic tests** for PKCE challenge generation, exact `127.0.0.1` callback URI handling, state/nonce binding, dynamic versus issued client ID, `access_denied`, required scopes, token refresh rotation, and ID-token validation failures.
+- [ ] **Step 1: Write deterministic tests** for PKCE challenge generation, browser launch contract, exact `127.0.0.1` callback URI handling, state/nonce binding, dynamic versus issued client ID, `access_denied`, required scopes, token refresh rotation, and ID-token validation failures.
 - [ ] **Step 2: Run focused OAuth tests** and verify they fail before implementation.
 - [ ] **Step 3: Implement authorization/session state and token exchange** against the official OpenAI endpoints; use a maintained OIDC/JWT library for signature validation against published JWKS rather than custom cryptography.
 - [ ] **Step 4: Implement serialized per-profile refresh** and replace access/refresh/ID tokens plus expiry/scopes together only after a successful refresh.
@@ -159,8 +164,8 @@
 - Modify: `Directory.Build.props` and package metadata if pack checks reveal gaps
 - Test: full `tests/Omega.AI.Gateway.Tests`
 
-- [ ] **Step 1: Write documentation checks or reviewable examples** for dependency injection, implementing/registering a custom provider, supplying a profile store/secret resolver, and hosting the OAuth callback.
-- [ ] **Step 2: Verify docs state the OAuth boundary**: eligible open-source/local test use only; remote/self-hosted VM must authorize locally and transfer protected credentials securely with its own stable host ID; paid or remotely hosted offerings require OpenAI review; production use should prefer supported provider APIs; no cookies/private endpoints/limit evasion.
+- [ ] **Step 1: Write documentation checks or reviewable examples** for dependency injection, implementing/registering a custom provider, supplying profile/secret stores, and starting the OAuth sign-in flow.
+- [ ] **Step 2: Verify docs state the OAuth boundary**: no API key is created or required for ChatGPT plan OAuth; eligible open-source/local test use only; remote/self-hosted VM must authorize locally and transfer protected credentials securely with its own stable host ID; paid or remotely hosted offerings require OpenAI review; no cookies/private endpoints/limit evasion.
 - [ ] **Step 3: Document OAuth setup using the official loopback callback and actual preview constraints**, including token protection, account/usage limits, unsupported request fields, `response.completed`, and recovery for permission/rate-limit failures.
 - [ ] **Step 4: Run `dotnet test Omega.AI.Gateway.sln` and `dotnet pack src/Omega.AI.Gateway/Omega.AI.Gateway.csproj -c Release -o artifacts/packages`**; verify both succeed without secrets or external requests.
 - [ ] **Step 5: Inspect the final diff and Git status**, check package contents do not include test secrets/runtime state, and report tested behavior plus OAuth eligibility and live-validation limitations.

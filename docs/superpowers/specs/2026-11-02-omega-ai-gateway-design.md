@@ -13,6 +13,7 @@ The employer's eventual deliverable is a working local SVG composition service: 
 - Let a new provider be added as an `IAiProvider` adapter and registered with dependency injection, without changing consumer code or Gateway contracts.
 - Deliver a first useful adapter for OpenAI-compatible Chat Completions endpoints, including model discovery when supported, connection checks, non-streaming completion, and streaming.
 - Provide an optional official Sign in with ChatGPT adapter for permitted local development and testing, using the public Responses API and its current constraints.
+- Support user-authorized ChatGPT plan usage through the same system-browser consent flow used by the user's existing local applications; no OpenAI API key is required for this path.
 - Keep credentials outside profile JSON, source, browser code, and logs by resolving a `SecretReference` through a host-provided secret resolver.
 - Keep failures, cancellation, timeouts, and provider diagnostics explicit.
 - Make the library usable from other .NET 10 applications and packable as a NuGet package when a consuming product chooses to publish it.
@@ -35,6 +36,7 @@ The employer's eventual deliverable is a working local SVG composition service: 
 - HTTPS is the default for remote endpoints. Plain HTTP is allowed only for explicitly configured local model endpoints. Endpoint handling must not silently forward credentials across redirects or to a different origin.
 - Provider-specific capabilities and unsupported options must be represented or rejected clearly, not silently treated as universally supported.
 - No live provider call is required for a deterministic build and automated test run.
+- The user explicitly declined creating an OpenAI API key for this project. Implementation and automated tests must not create, inspect, or use one; live testing uses ChatGPT OAuth only after the user completes system-browser consent.
 - ChatGPT plan usage through Sign in with ChatGPT is preview functionality whose current eligibility and deployment restrictions must be checked against official OpenAI documentation before use. The intended use here is local development/testing; normal application usage should prefer official provider APIs and their supported authentication/billing path.
 
 ## Approaches considered
@@ -65,9 +67,9 @@ Compatibility is an adapter capability, not an assumption about a vendor name. A
 
 ### Extending to other providers
 
-A consumer or provider package implements `IAiProvider`, declares a stable `ProviderKind`, and registers it with the Gateway. The consuming application does not acquire SVG-specific or vendor-specific branches. The ChatGPT OAuth authorization coordinator exposes the authorization URI and callback completion to the host instead of launching a browser or opening a network listener itself. A local desktop or same-machine server host owns browser launch and the loopback callback. For a self-hosted remote VM, the host must import credentials obtained locally and transferred securely; the VM uses its own stable host ID and owns subsequent refresh. Public/paid/remote-hosted consumer products must not enable this adapter unless OpenAI has approved that deployment path. No browser automation, cookie extraction, ChatGPT private endpoints, hidden billing-path fallback, or OAuth credential logging is allowed.
+A consumer or provider package implements `IAiProvider`, declares a stable `ProviderKind`, and registers it with the Gateway. The consuming application does not acquire SVG-specific or vendor-specific branches. The ChatGPT OAuth service follows the user's existing local-app flow: it creates a short-lived `127.0.0.1` callback listener, builds the authorization URI, and opens it through an injectable system-browser abstraction. Headless or web hosts can instead receive the URI and manage browser launch through their own adapter. For a self-hosted remote VM, OAuth is completed locally and protected credentials are transferred securely; the VM uses its own stable host ID and owns subsequent refresh. Public/paid/remote-hosted consumer products must not enable this adapter unless OpenAI has approved that deployment path. No browser automation, cookie extraction, ChatGPT private endpoints, hidden billing-path fallback, or OAuth credential logging is allowed.
 
-The current official guidance describes this plan-usage OAuth path for open-source and locally hosted apps; paid or remotely hosted offerings require OpenAI review. The target library is not itself permission to use the flow in every consumer. The consumer must independently confirm eligibility. For ordinary production use, use supported provider APIs and their documented billing/authentication instead.
+The current official guidance describes this plan-usage OAuth path for open-source and locally hosted apps; paid or remotely hosted offerings require OpenAI review. The target library is not itself permission to use the flow in every consumer. The consumer must independently confirm eligibility. This project will not create or configure an API key; adapters for other providers remain available through the provider interface.
 
 ### Security and network behavior
 
@@ -82,7 +84,7 @@ The test project uses a fake provider and a local in-process HTTP handler/server
 - Use .NET 10 only in the initial package, matching the supplied service target. Add other target frameworks only when an actual Omega Lab consumer requires them.
 - Keep provider adapters explicitly registered; do not use reflection-based plugin discovery.
 - Keep persistence and secret storage interfaces in the Gateway boundary and implementations in the consuming host or separate integration package.
-- Implement Gateway-1 only: generic contracts, a fake test provider, and one OpenAI-compatible Chat Completions adapter. Schedule OAuth and native adapters as later, independent work.
+- Implement the approved library stage: generic contracts, an OpenAI-compatible Chat Completions adapter, and an optional official ChatGPT OAuth adapter for eligible local testing. Native adapters remain future provider packages.
 - Do not connect OmegaIllustrator or add its source tree in this phase.
 
 ## Expected final outcomes

@@ -1,2 +1,7 @@
 .worktrees/
 .superpowers/
+**/bin/
+**/obj/
+artifacts/
+*.user
+*.suo
