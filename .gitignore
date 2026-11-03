@@ -2,6 +2,11 @@
 .superpowers/
 **/bin/
 **/obj/
+**/bin-*/
+**/obj-*/
+**/bin-*/**
+**/obj-*/**
+**/TestResults/**
 artifacts/
 *.user
 *.suo

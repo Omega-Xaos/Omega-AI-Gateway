@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Omega.AI.Gateway.Contracts;
 using Omega.AI.Gateway.Gateway;
 using Omega.AI.Gateway.Providers.ChatGptOAuth;
+using Omega.AI.Gateway.Providers.Anthropic;
+using Omega.AI.Gateway.Providers.GoogleGemini;
 using Omega.AI.Gateway.Providers.OpenAiCompatible;
 
 namespace Omega.AI.Gateway.DependencyInjection;
@@ -22,6 +24,22 @@ public sealed class AiGatewayBuilder(IServiceCollection services)
         Services.AddHttpClient<OpenAiCompatibleProvider>()
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
         Services.AddScoped<IAiProvider>(provider => provider.GetRequiredService<OpenAiCompatibleProvider>());
+        return this;
+    }
+
+    public AiGatewayBuilder AddAnthropicMessages()
+    {
+        Services.AddHttpClient<AnthropicMessagesProvider>()
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+        Services.AddScoped<IAiProvider>(provider => provider.GetRequiredService<AnthropicMessagesProvider>());
+        return this;
+    }
+
+    public AiGatewayBuilder AddGoogleGemini()
+    {
+        Services.AddHttpClient<GoogleGeminiProvider>()
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
+        Services.AddScoped<IAiProvider>(provider => provider.GetRequiredService<GoogleGeminiProvider>());
         return this;
     }
 

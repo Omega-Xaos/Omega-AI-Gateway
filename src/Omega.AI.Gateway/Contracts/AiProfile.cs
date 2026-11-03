@@ -17,4 +17,6 @@ public sealed record AiProfile(
     string? SecretReference = null,
     TimeSpan? Timeout = null,
     bool IsEnabled = true,
-    bool AllowLocalHttp = false);
+    bool AllowLocalHttp = false,
+    string? SecretHeaderName = null,
+    string? SecretHeaderPrefix = null);

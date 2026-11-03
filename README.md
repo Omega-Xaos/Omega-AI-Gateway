@@ -7,6 +7,7 @@ The library currently contains:
 - neutral profiles, messages, requests, responses, model metadata and streaming events;
 - gateway routing, cancellation, timeouts and normalized errors;
 - an OpenAI-compatible Chat Completions adapter for services that expose that protocol;
+- native Anthropic Messages and Google Gemini REST adapters with model discovery;
 - an optional official Sign in with ChatGPT adapter for eligible local development and testing.
 
 The gateway does not contain SVG, illustration or other consumer-domain behavior. A consuming application validates model output for its own domain.
@@ -18,7 +19,10 @@ Reference the project or the packed NuGet package. The host implements profile a
 ```csharp
 services.AddSingleton<IAiProfileStore, ApplicationAiProfileStore>();
 services.AddSingleton<IAiSecretResolver, ApplicationSecretResolver>();
-services.AddOmegaAiGateway(builder => builder.AddOpenAiCompatible());
+services.AddOmegaAiGateway(builder => builder
+    .AddOpenAiCompatible()
+    .AddAnthropicMessages()
+    .AddGoogleGemini());
 ```
 
 For ChatGPT OAuth in an eligible local test application, register the host's protected OAuth credential store and add the OAuth adapter:
@@ -44,7 +48,7 @@ An application can add a provider without changing gateway contracts:
 services.AddOmegaAiGateway(builder => builder.AddProvider<ContosoNativeProvider>());
 ```
 
-`IAiProvider` is the transport boundary. Vendor APIs with different request, auth or streaming semantics need their own adapter; they are not treated as automatically compatible.
+`IAiProvider` is the transport boundary. Use OpenAI-compatible mode for services that implement that protocol. Anthropic and Gemini use their native request, authentication, model-listing and streaming formats. Other vendor APIs with different semantics still need their own adapter; selecting a provider name does not make an unrelated API compatible.
 
 ## ChatGPT plan OAuth boundary
 

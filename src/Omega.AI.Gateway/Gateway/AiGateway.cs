@@ -63,7 +63,7 @@ public sealed class AiGateway : IAiGateway
         }
         catch (AiGatewayException exception)
         {
-            throw NormalizeProviderError(exception.Code);
+            throw NormalizeProviderError(exception);
         }
         catch (Exception)
         {
@@ -91,7 +91,7 @@ public sealed class AiGateway : IAiGateway
                 }
                 catch (AiGatewayException exception)
                 {
-                    throw NormalizeProviderError(exception.Code);
+                    throw NormalizeProviderError(exception);
                 }
                 catch (Exception)
                 {
@@ -122,7 +122,7 @@ public sealed class AiGateway : IAiGateway
             }
             catch (AiGatewayException exception)
             {
-                throw NormalizeProviderError(exception.Code);
+                throw NormalizeProviderError(exception);
             }
             catch (Exception)
             {
@@ -152,7 +152,7 @@ public sealed class AiGateway : IAiGateway
         }
         catch (AiGatewayException exception)
         {
-            throw NormalizeProviderError(exception.Code);
+            throw NormalizeProviderError(exception);
         }
         catch (Exception)
         {
@@ -230,7 +230,7 @@ public sealed class AiGateway : IAiGateway
     private static AiGatewayException ProviderFailure() =>
         new(AiErrorCode.ProviderFailure, "AI provider operation failed.");
 
-    private static AiGatewayException NormalizeProviderError(AiErrorCode code) => new(code, code switch
+    private static AiGatewayException NormalizeProviderError(AiGatewayException exception) => new(exception.Code, exception.Code switch
     {
         AiErrorCode.Configuration => "AI provider configuration is invalid.",
         AiErrorCode.UnsupportedCapability => "AI provider does not support this operation.",
@@ -241,7 +241,7 @@ public sealed class AiGateway : IAiGateway
         AiErrorCode.Timeout => "AI provider operation timed out.",
         AiErrorCode.MalformedResponse => "AI provider returned malformed data.",
         _ => "AI provider operation failed."
-    });
+    }, exception.HttpStatusCode);
 
     private static AiGatewayException TimeoutException() =>
         new(AiErrorCode.Timeout, "AI provider operation timed out.");

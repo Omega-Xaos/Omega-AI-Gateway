@@ -13,7 +13,8 @@ public enum AiErrorCode
     MalformedResponse
 }
 
-public sealed class AiGatewayException(AiErrorCode code, string message) : Exception(message)
+public sealed class AiGatewayException(AiErrorCode code, string message, int? httpStatusCode = null) : Exception(message)
 {
     public AiErrorCode Code { get; } = code;
+    public int? HttpStatusCode { get; } = httpStatusCode;
 }

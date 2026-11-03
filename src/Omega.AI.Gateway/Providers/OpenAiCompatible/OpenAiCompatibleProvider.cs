@@ -119,14 +119,27 @@ public sealed class OpenAiCompatibleProvider : IAiProvider
                 throw new AiGatewayException(AiErrorCode.Configuration, "Provider secret reference is missing.");
             }
 
+            var headerName = profile.SecretHeaderName ?? "Authorization";
+            var headerPrefix = profile.SecretHeaderPrefix ??
+                (string.Equals(headerName, "Authorization", StringComparison.OrdinalIgnoreCase) ? "Bearer " : string.Empty);
+            if (!IsValidSecretHeader(headerName, headerPrefix))
+            {
+                request.Dispose();
+                throw new AiGatewayException(AiErrorCode.Configuration, "Provider API-key header configuration is invalid.");
+            }
+
             var secret = await _secrets.ResolveAsync(profile.SecretReference, cancellationToken).ConfigureAwait(false);
-            if (string.IsNullOrWhiteSpace(secret))
+            if (string.IsNullOrWhiteSpace(secret) || secret.Length > 8_192 || secret.Any(char.IsControl))
             {
                 request.Dispose();
                 throw new AiGatewayException(AiErrorCode.Authentication, "Provider credential is unavailable.");
             }
 
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", secret);
+            if (!request.Headers.TryAddWithoutValidation(headerName, headerPrefix + secret))
+            {
+                request.Dispose();
+                throw new AiGatewayException(AiErrorCode.Configuration, "Provider API-key header could not be added.");
+            }
         }
         else if (profile.AuthMode != AiAuthMode.None)
         {
@@ -136,6 +149,19 @@ public sealed class OpenAiCompatibleProvider : IAiProvider
 
         request.Headers.Accept.ParseAdd(method == HttpMethod.Post ? "application/json" : "application/json");
         return request;
+    }
+
+    private static bool IsValidSecretHeader(string name, string prefix)
+    {
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 100 ||
+            name.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '-') ||
+            prefix.Length > 64 || prefix.Any(char.IsControl))
+        {
+            return false;
+        }
+
+        return name.ToLowerInvariant() is not "host" and not "content-length" and not "transfer-encoding" and
+            not "connection" and not "cookie" and not "proxy-authorization" and not "upgrade";
     }
 
     private async Task<HttpResponseMessage> SendHttpAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -188,7 +214,7 @@ public sealed class OpenAiCompatibleProvider : IAiProvider
             System.Net.HttpStatusCode.TooManyRequests => AiErrorCode.RateLimit,
             _ => AiErrorCode.ProviderFailure
         };
-        throw new AiGatewayException(code, $"Provider returned HTTP {(int)response.StatusCode}.");
+        throw new AiGatewayException(code, $"Provider returned HTTP {(int)response.StatusCode}.", (int)response.StatusCode);
     }
 
     private static async Task<JsonDocument> ReadJsonAsync(HttpResponseMessage response, CancellationToken cancellationToken)

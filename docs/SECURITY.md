@@ -11,6 +11,7 @@
 ## Network endpoints
 
 - The OpenAI-compatible adapter requires HTTPS, except HTTP to an explicitly enabled loopback endpoint for a local model service.
+- Anthropic and Gemini adapters validate the configured base URL before resolving a key and send credentials only in their documented API-key headers.
 - Built-in DI registration disables redirects before credentials can be forwarded. Keep this registration or configure an equivalent handler if constructing providers manually.
 - ChatGPT OAuth endpoints are fixed to the official OpenAI hosts and validated when options are used.
 - A public multi-tenant host must enforce a provider endpoint allow-list and egress policy to prevent SSRF.
