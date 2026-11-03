@@ -1,68 +1,44 @@
 # Omega AI Gateway
 
-Provider-neutral .NET 10 library for connecting desktop and server applications to explicitly registered AI providers.
+Небольшой .NET 10 компонент проекта Omega Illustrator для подключения AI-провайдеров через общий контракт и отдельные адаптеры. Библиотека нужна приложению, чтобы не встраивать особенности каждого API в редактор композиций. Она не заявляется как универсальный мост к любому сервису или модели.
 
-The library currently contains:
+## Поддерживаемые подключения
 
-- neutral profiles, messages, requests, responses, model metadata and streaming events;
-- gateway routing, cancellation, timeouts and normalized errors;
-- an OpenAI-compatible Chat Completions adapter for services that expose that protocol;
-- native Anthropic Messages and Google Gemini REST adapters with model discovery;
-- an optional official Sign in with ChatGPT adapter for eligible local development and testing.
+- OpenAI-compatible chat completions.
+- Anthropic Messages API.
+- Google Gemini API.
+- ChatGPT plan OAuth в локальном demo-сценарии, если аккаунт и текущие правила OpenAI это разрешают.
 
-The gateway does not contain SVG, illustration or other consumer-domain behavior. A consuming application validates model output for its own domain.
+Подключение API-ключей настраивается хост-приложением. Этот репозиторий не содержит ключей и не создаёт их. Адаптер проверяет конфигурацию, вызывает поддерживаемые endpoints и возвращает нормализованный ответ; приложение должно самостоятельно валидировать предметный JSON и не исполнять непроверенный вывод модели.
 
-## Add to an application
+## Использование с Omega Illustrator
 
-Reference the project or the packed NuGet package. The host implements profile and protected credential storage:
-
-```csharp
-services.AddSingleton<IAiProfileStore, ApplicationAiProfileStore>();
-services.AddSingleton<IAiSecretResolver, ApplicationSecretResolver>();
-services.AddOmegaAiGateway(builder => builder
-    .AddOpenAiCompatible()
-    .AddAnthropicMessages()
-    .AddGoogleGemini());
-```
-
-For ChatGPT OAuth in an eligible local test application, register the host's protected OAuth credential store and add the OAuth adapter:
-
-```csharp
-services.AddSingleton<IChatGptOAuthCredentialStore, ProtectedChatGptCredentialStore>();
-services.AddOmegaAiGateway(builder => builder.AddChatGptOAuth(new ChatGptOAuthOptions()));
-```
-
-The authorization service is a singleton because an OAuth attempt spans the browser round trip. `BeginSignInAsync` and `WaitForSignInAsync` must reach the same running process. The service opens the system browser. The user signs in and approves the app. The library receives the browser's one-time redirect through an HTTP loopback listener on `127.0.0.1`; applications inject another `IAuthorizationBrowser` for headless or controlled environments. Store OAuth credentials using OS-protected storage on desktop or the host's secret store on a server. The store must provide atomic writes and a refresh lock shared by all processes that can use the same credentials. Do not serialize tokens into `AiProfile` or logs.
-
-```csharp
-var signIn = await authorization.BeginSignInAsync(profileId, stableHostId, cancellationToken);
-var credential = await authorization.WaitForSignInAsync(profileId, cancellationToken);
-var response = await gateway.SendAsync(new AiRequest(
-    profileId,
-    [new AiMessage(AiMessageRole.User, "Describe the task")]), cancellationToken);
-```
-
-An application can add a provider without changing gateway contracts:
-
-```csharp
-services.AddOmegaAiGateway(builder => builder.AddProvider<ContosoNativeProvider>());
-```
-
-`IAiProvider` is the transport boundary. Use OpenAI-compatible mode for services that implement that protocol. Anthropic and Gemini use their native request, authentication, model-listing and streaming formats. Other vendor APIs with different semantics still need their own adapter; selecting a provider name does not make an unrelated API compatible.
-
-## ChatGPT plan OAuth boundary
-
-This optional integration does not create or require an OpenAI API key. It uses an explicit system-browser sign-in, official OAuth endpoints, PKCE, a one-time loopback callback and the public Responses API. It rejects accounts without the granted `chatgpt.tokens.use.direct` scope. Inference is sent with `store=false` and `stream=true`, and succeeds only after `response.completed`.
-
-The integration is for eligible open-source/local testing workflows under OpenAI's current rules. A ChatGPT Plus subscription or the per-app limits visible in the account UI do not by themselves guarantee OAuth eligibility, model access or unlimited use. Paid or remotely hosted consumer products must obtain the required OpenAI review. The adapter does not automate ChatGPT's website, extract cookies, use private endpoints, evade limits or silently retry under another billing identity.
-
-For a self-hosted VM, complete OAuth locally, transfer credentials through a protected channel, and let the VM refresh them using its own stable host ID. See [OAuth testing and deployment](docs/CHATGPT_OAUTH_TESTING.md).
-
-## Build and verify
+Клонируйте этот репозиторий рядом с приложением с точным именем `DLL_OMEGA_LAB_CONNECT_AI`, затем запускайте приложение:
 
 ```powershell
-dotnet test Omega.AI.Gateway.sln
-dotnet pack src/Omega.AI.Gateway/Omega.AI.Gateway.csproj -c Release -o artifacts/packages
+git clone https://github.com/Omega-Xaos/Omega-AI-Gateway.git DLL_OMEGA_LAB_CONNECT_AI
+cd ..\SVG_Auto
+dotnet test .\OmegaIllustrator.slnx -c Release
 ```
 
-All automated tests use in-process HTTP handlers and generated test keys. No provider account, API key, or external inference request is required.
+Профили и API-ключи приложения задаются локально через страницу `/ai`; перемещать секреты в исходники, логи или Git нельзя.
+
+## Проверка и упаковка NuGet
+
+Нужен .NET 10 SDK; Visual Studio не требуется.
+
+```powershell
+dotnet test .\Omega.AI.Gateway.sln -c Release
+dotnet pack .\src\Omega.AI.Gateway\Omega.AI.Gateway.csproj -c Release -o .\artifacts\packages
+```
+
+Пакет для NuGet здесь не опубликован. Перед использованием в других приложениях проверьте поддерживаемый протокол, версию .NET, нужные возможности конкретного провайдера и локальные правила обработки секретов.
+
+## Границы
+
+- Это компактная библиотека с несколькими конкретными адаптерами, не абстракция над всеми AI-сервисами.
+- Совместимый API работает только если провайдер действительно реализует нужный протокол и endpoints.
+- ChatGPT plan OAuth не является OpenAI Platform API. В Omega Illustrator он оставлен только для локального демо; не используйте его для production, объединения аккаунтов или перепродажи лимитов. Для коммерческого или удалённого приложения отдельно проверьте текущую программу OpenAI.
+- Квоты, доступ к моделям и стабильность endpoint контролирует провайдер; локальные тесты не используют реальные аккаунты.
+
+Основное приложение и инструкции находятся в [Omega Illustrator](https://github.com/Omega-Xaos/OmegaIllustrator).
